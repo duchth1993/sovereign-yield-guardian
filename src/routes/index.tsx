@@ -278,6 +278,13 @@ function SovereignYieldPage() {
         const prevRep = reputation;
 
         if (kind === "deposit") {
+          if (!stablecoinConfigured) {
+            setError(
+              "Stablecoin address not set. Configure VITE_STABLECOIN_ADDRESS to enable deposits.",
+            );
+            setPending(null);
+            return;
+          }
           const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, signer);
           const allowance: bigint = await stable.allowance(
             account,
