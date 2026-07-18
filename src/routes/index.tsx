@@ -30,11 +30,11 @@ export const Route = createFileRoute("/")({
         content:
           "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming.",
       },
-      { property: "og:title", content: "Sovereign Yield" },
+      { property: "og:title", content: "Sovereign Yield — Reputation-driven yield on OPN Chain" },
       {
         property: "og:description",
         content:
-          "Reputation-driven yield on OPN Chain. Your identity follows every transaction.",
+          "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
