@@ -52,9 +52,11 @@ export const TIERS = [
   { tier: "V", label: "Tier V · Nexus", minRep: 20000, apy: 18 },
 ] as const;
 
-export function tierForRep(rep: bigint | number) {
+export type Tier = (typeof TIERS)[number];
+
+export function tierForRep(rep: bigint | number): Tier {
   const n = typeof rep === "bigint" ? Number(rep) : rep;
-  let current = TIERS[0];
+  let current: Tier = TIERS[0];
   for (const t of TIERS) if (n >= t.minRep) current = t;
   return current;
 }
