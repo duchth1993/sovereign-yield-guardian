@@ -1,24 +1,768 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  BrowserProvider,
+  Contract,
+  JsonRpcProvider,
+  formatUnits,
+  parseUnits,
+  type Eip1193Provider,
+} from "ethers";
+import {
+  ERC20_ABI,
+  OPN_CHAIN,
+  SOVEREIGN_YIELD_ABI,
+  SOVEREIGN_YIELD_ADDRESS,
+  STABLECOIN_ADDRESS,
+  STABLECOIN_DECIMALS,
+  STABLECOIN_SYMBOL,
+  TIERS,
+  nextTier,
+  tierForRep,
+} from "@/lib/contract";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Sovereign Yield — Reputation-driven yield on OPN Chain" },
+      {
+        name: "description",
+        content:
+          "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming.",
+      },
+      { property: "og:title", content: "Sovereign Yield" },
+      {
+        property: "og:description",
+        content:
+          "Reputation-driven yield on OPN Chain. Your identity follows every transaction.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: SovereignYieldPage,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+type Eth = Eip1193Provider & {
+  on?: (event: string, handler: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
+};
+
+function getInjected(): Eth | null {
+  if (typeof window === "undefined") return null;
+  return (window as unknown as { ethereum?: Eth }).ethereum ?? null;
+}
+
+const readProvider = new JsonRpcProvider(OPN_CHAIN.rpcUrl, OPN_CHAIN.chainId);
+
+function shortAddr(a: string) {
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+function txExplorerUrl(hash: string) {
+  return `${OPN_CHAIN.blockExplorerUrl}/tx/${hash}`;
+}
+
+function addrExplorerUrl(addr: string) {
+  return `${OPN_CHAIN.blockExplorerUrl}/address/${addr}`;
+}
+
+type ActivityRow = {
+  kind: "Deposit" | "Withdraw";
+  amount: string;
+  hash: string;
+  repDelta: string;
+  ts: number;
+};
+
+function SovereignYieldPage() {
+  const [account, setAccount] = useState<string | null>(null);
+  const [chainOk, setChainOk] = useState(false);
+  const [principal, setPrincipal] = useState<bigint>(0n);
+  const [reputation, setReputation] = useState<bigint>(0n);
+  const [walletBalance, setWalletBalance] = useState<bigint>(0n);
+  const [inputAmount, setInputAmount] = useState("100");
+  const [pending, setPending] = useState<null | "deposit" | "withdraw" | "approve">(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastTx, setLastTx] = useState<string | null>(null);
+  const [activity, setActivity] = useState<ActivityRow[]>([]);
+  const [repFlash, setRepFlash] = useState<string | null>(null);
+  const flashTimer = useRef<number | null>(null);
+
+  const contractsConfigured =
+    !!SOVEREIGN_YIELD_ADDRESS && !!STABLECOIN_ADDRESS;
+
+  const tier = useMemo(() => tierForRep(reputation), [reputation]);
+  const upcoming = useMemo(() => nextTier(reputation), [reputation]);
+  const tierIndex = TIERS.findIndex((t) => t.tier === tier.tier);
+
+  const refreshAccount = useCallback(
+    async (addr: string) => {
+      if (!contractsConfigured) return;
+      try {
+        const yieldC = new Contract(
+          SOVEREIGN_YIELD_ADDRESS,
+          SOVEREIGN_YIELD_ABI,
+          readProvider,
+        );
+        const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, readProvider);
+        const [acct, bal] = await Promise.all([
+          yieldC.getAccount(addr) as Promise<[bigint, bigint, bigint]>,
+          stable.balanceOf(addr) as Promise<bigint>,
+        ]);
+        setPrincipal(acct[0]);
+        setReputation((prev) => {
+          if (acct[1] > prev && prev !== 0n) {
+            const delta = acct[1] - prev;
+            setRepFlash(`+${delta.toString()} REP`);
+            if (flashTimer.current) window.clearTimeout(flashTimer.current);
+            flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
+          }
+          return acct[1];
+        });
+        setWalletBalance(bal);
+      } catch (e) {
+        console.error("refreshAccount failed", e);
+      }
+    },
+    [contractsConfigured],
+  );
+
+  const connect = useCallback(async () => {
+    setError(null);
+    const eth = getInjected();
+    if (!eth) {
+      setError(
+        "No wallet detected. Install MetaMask (or any EIP-1193 wallet) to interact with OPN Chain.",
+      );
+      return;
+    }
+    try {
+      const accounts = (await eth.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+      const addr = accounts[0];
+      setAccount(addr);
+
+      // Try to switch to OPN Chain, add if unknown.
+      try {
+        await eth.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: OPN_CHAIN.chainIdHex }],
+        });
+        setChainOk(true);
+      } catch (switchErr) {
+        const code = (switchErr as { code?: number }).code;
+        if (code === 4902) {
+          await eth.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: OPN_CHAIN.chainIdHex,
+                chainName: OPN_CHAIN.name,
+                rpcUrls: [OPN_CHAIN.rpcUrl],
+                nativeCurrency: OPN_CHAIN.currency,
+                blockExplorerUrls: [OPN_CHAIN.blockExplorerUrl],
+              },
+            ],
+          });
+          setChainOk(true);
+        } else {
+          throw switchErr;
+        }
+      }
+      await refreshAccount(addr);
+    } catch (e) {
+      setError((e as Error).message ?? "Wallet connection failed");
+    }
+  }, [refreshAccount]);
+
+  // Listen for account/chain changes
+  useEffect(() => {
+    const eth = getInjected();
+    if (!eth?.on) return;
+    const onAcc = (accs: unknown) => {
+      const list = accs as string[];
+      setAccount(list[0] ?? null);
+      if (list[0]) void refreshAccount(list[0]);
+    };
+    const onChain = (cid: unknown) => {
+      setChainOk((cid as string).toLowerCase() === OPN_CHAIN.chainIdHex);
+    };
+    eth.on("accountsChanged", onAcc);
+    eth.on("chainChanged", onChain);
+    return () => {
+      eth.removeListener?.("accountsChanged", onAcc);
+      eth.removeListener?.("chainChanged", onChain);
+    };
+  }, [refreshAccount]);
+
+  // Subscribe to ReputationBoosted for the current account (live REP updates).
+  useEffect(() => {
+    if (!account || !contractsConfigured) return;
+    const c = new Contract(
+      SOVEREIGN_YIELD_ADDRESS,
+      SOVEREIGN_YIELD_ABI,
+      readProvider,
+    );
+    const filter = c.filters.ReputationBoosted(account);
+    const handler = (_user: string, newRep: bigint) => {
+      setReputation((prev) => {
+        if (newRep > prev && prev !== 0n) {
+          const delta = newRep - prev;
+          setRepFlash(`+${delta.toString()} REP`);
+          if (flashTimer.current) window.clearTimeout(flashTimer.current);
+          flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
+        }
+        return newRep;
+      });
+    };
+    c.on(filter, handler);
+    return () => {
+      c.off(filter, handler);
+    };
+  }, [account, contractsConfigured]);
+
+  const runTx = useCallback(
+    async (kind: "deposit" | "withdraw") => {
+      setError(null);
+      setLastTx(null);
+      const eth = getInjected();
+      if (!eth || !account) {
+        setError("Connect your wallet first.");
+        return;
+      }
+      if (!contractsConfigured) {
+        setError(
+          "Contract address not set. Deploy contracts/SovereignYield.sol to OPN Chain and configure VITE_SOVEREIGN_YIELD_ADDRESS / VITE_STABLECOIN_ADDRESS.",
+        );
+        return;
+      }
+      let amount: bigint;
+      try {
+        amount = parseUnits(inputAmount || "0", STABLECOIN_DECIMALS);
+        if (amount <= 0n) throw new Error("Amount must be greater than zero.");
+      } catch (e) {
+        setError((e as Error).message);
+        return;
+      }
+      try {
+        const browserProvider = new BrowserProvider(eth);
+        const signer = await browserProvider.getSigner();
+        const yieldC = new Contract(
+          SOVEREIGN_YIELD_ADDRESS,
+          SOVEREIGN_YIELD_ABI,
+          signer,
+        );
+
+        const prevRep = reputation;
+
+        if (kind === "deposit") {
+          const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, signer);
+          const allowance: bigint = await stable.allowance(
+            account,
+            SOVEREIGN_YIELD_ADDRESS,
+          );
+          if (allowance < amount) {
+            setPending("approve");
+            const approveTx = await stable.approve(SOVEREIGN_YIELD_ADDRESS, amount);
+            await approveTx.wait();
+          }
+          setPending("deposit");
+          const tx = await yieldC.deposit(amount);
+          setLastTx(tx.hash);
+          const receipt = await tx.wait();
+          await refreshAccount(account);
+          const newRep = await (
+            new Contract(SOVEREIGN_YIELD_ADDRESS, SOVEREIGN_YIELD_ABI, readProvider)
+          ).reputation(account) as bigint;
+          setActivity((rows) =>
+            [
+              {
+                kind: "Deposit" as const,
+                amount: formatUnits(amount, STABLECOIN_DECIMALS),
+                hash: tx.hash,
+                repDelta: `+${(newRep - prevRep).toString()}`,
+                ts: receipt?.blockNumber ? Date.now() : Date.now(),
+              },
+              ...rows,
+            ].slice(0, 6),
+          );
+        } else {
+          setPending("withdraw");
+          const tx = await yieldC.withdraw(amount);
+          setLastTx(tx.hash);
+          await tx.wait();
+          await refreshAccount(account);
+          const newRep = await (
+            new Contract(SOVEREIGN_YIELD_ADDRESS, SOVEREIGN_YIELD_ABI, readProvider)
+          ).reputation(account) as bigint;
+          setActivity((rows) =>
+            [
+              {
+                kind: "Withdraw" as const,
+                amount: formatUnits(amount, STABLECOIN_DECIMALS),
+                hash: tx.hash,
+                repDelta: `+${(newRep - prevRep).toString()}`,
+                ts: Date.now(),
+              },
+              ...rows,
+            ].slice(0, 6),
+          );
+        }
+      } catch (e) {
+        const msg =
+          (e as { shortMessage?: string; message?: string }).shortMessage ??
+          (e as Error).message ??
+          "Transaction failed";
+        setError(msg);
+      } finally {
+        setPending(null);
+      }
+    },
+    [account, contractsConfigured, inputAmount, refreshAccount, reputation],
+  );
+
+  const busy = pending !== null;
+  const canAct = account && chainOk && contractsConfigured && !busy;
+
+  const principalHuman = formatUnits(principal, STABLECOIN_DECIMALS);
+  const walletHuman = formatUnits(walletBalance, STABLECOIN_DECIMALS);
+
+  // Progress within current tier
+  const tierProgress = useMemo(() => {
+    const repN = Number(reputation);
+    const start = tier.minRep;
+    const end = upcoming ? upcoming.minRep : start + 1;
+    const pct = Math.min(100, Math.max(0, ((repN - start) / (end - start)) * 100));
+    return { pct, repN };
+  }, [reputation, tier, upcoming]);
+
+  return (
+    <div className="min-h-screen grid-bg">
+      <div className="mx-auto max-w-6xl px-6 py-10">
+        <Header account={account} chainOk={chainOk} onConnect={connect} />
+
+        {!contractsConfigured && <DeploymentBanner />}
+
+        <main className="mt-10 grid gap-6 lg:grid-cols-[1.15fr_1fr]">
+          <section className="card-surface p-8 relative overflow-hidden">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  <span className="relative inline-flex h-2 w-2">
+                    <span className="pulse-dot absolute inset-0 rounded-full" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+                  </span>
+                  Live · OPN Chain #{OPN_CHAIN.chainId}
+                </div>
+                <h1 className="mt-3 text-4xl sm:text-5xl font-semibold leading-[1.05]">
+                  Sovereign Yield
+                </h1>
+                <p className="mt-3 max-w-lg text-muted-foreground">
+                  A permissionless yield optimizer where APY scales with your
+                  Nexus REP tier. Every deposit updates your on-chain reputation.
+                </p>
+              </div>
+              <TierBadge tier={tier.tier} apy={tier.apy} />
+            </div>
+
+            <div className="mt-8 grid grid-cols-2 gap-4">
+              <Stat
+                label="Your APY"
+                value={`${tier.apy.toFixed(2)}%`}
+                sub={`${tier.label}`}
+                emphasis
+              />
+              <Stat
+                label="On-chain REP"
+                value={reputation.toString()}
+                sub={
+                  upcoming
+                    ? `${(upcoming.minRep - Number(reputation)).toLocaleString()} to ${upcoming.tier}`
+                    : "Maxed — Nexus tier"
+                }
+                flash={repFlash}
+              />
+              <Stat
+                label="Principal"
+                value={`${Number(principalHuman).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })} ${STABLECOIN_SYMBOL}`}
+                sub="Deposited to vault"
+              />
+              <Stat
+                label="Wallet"
+                value={`${Number(walletHuman).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })} ${STABLECOIN_SYMBOL}`}
+                sub={account ? shortAddr(account) : "Not connected"}
+              />
+            </div>
+
+            <TierLadder currentIndex={tierIndex} progress={tierProgress.pct} nextTier={upcoming} />
+          </section>
+
+          <section className="card-surface p-8">
+            <h2 className="text-xl font-semibold">Move capital</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Deposit or withdraw {STABLECOIN_SYMBOL}. Every action fires{" "}
+              <code className="text-accent">ReputationBoosted</code> on-chain.
+            </p>
+
+            <label className="mt-6 block text-xs uppercase tracking-widest text-muted-foreground">
+              Amount ({STABLECOIN_SYMBOL})
+            </label>
+            <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-4 py-3 focus-within:accent-glow transition-shadow">
+              <input
+                inputMode="decimal"
+                value={inputAmount}
+                onChange={(e) =>
+                  setInputAmount(e.target.value.replace(/[^\d.]/g, ""))
+                }
+                placeholder="0.00"
+                className="w-full bg-transparent text-2xl font-display outline-none placeholder:text-muted-foreground"
+              />
+              <button
+                type="button"
+                onClick={() => setInputAmount(walletHuman)}
+                className="text-xs uppercase tracking-widest text-accent hover:opacity-80"
+              >
+                Max
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={!canAct}
+                onClick={() => runTx("deposit")}
+                className="rounded-lg bg-accent px-4 py-3 font-medium text-accent-foreground transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 accent-glow"
+              >
+                {pending === "approve"
+                  ? "Approving…"
+                  : pending === "deposit"
+                    ? "Depositing…"
+                    : "Deposit"}
+              </button>
+              <button
+                type="button"
+                disabled={!canAct}
+                onClick={() => runTx("withdraw")}
+                className="rounded-lg border border-border bg-surface-2 px-4 py-3 font-medium transition-all hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {pending === "withdraw" ? "Withdrawing…" : "Withdraw"}
+              </button>
+            </div>
+
+            {!account && (
+              <p className="mt-4 text-xs text-muted-foreground">
+                Connect a wallet to sign transactions on OPN Chain testnet.
+              </p>
+            )}
+            {account && !chainOk && (
+              <p className="mt-4 text-xs text-warning">
+                Switch to OPN Chain (ID {OPN_CHAIN.chainId}) to continue.
+              </p>
+            )}
+            {error && (
+              <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                {error}
+              </p>
+            )}
+            {lastTx && (
+              <a
+                href={txExplorerUrl(lastTx)}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 flex items-center justify-between rounded-md border border-accent/40 bg-accent-soft px-3 py-2 text-xs"
+              >
+                <span className="text-muted-foreground">Latest tx</span>
+                <span className="font-mono text-accent">{shortAddr(lastTx)} ↗</span>
+              </a>
+            )}
+          </section>
+        </main>
+
+        <ActivityPanel rows={activity} />
+        <Footer />
+      </div>
+    </div>
+  );
+}
+
+function Header({
+  account,
+  chainOk,
+  onConnect,
+}: {
+  account: string | null;
+  chainOk: boolean;
+  onConnect: () => void;
+}) {
+  return (
+    <header className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <Logo />
+        <div>
+          <div className="font-display text-lg font-semibold leading-none">
+            Sovereign Yield
+          </div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+            Nexus REP · NeoID-bound
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs">
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              chainOk ? "bg-success" : "bg-warning"
+            }`}
+          />
+          <span className="text-muted-foreground">
+            {chainOk ? OPN_CHAIN.name : "Wrong network"}
+          </span>
+        </div>
+        {account ? (
+          <div className="rounded-lg border border-border bg-surface px-4 py-2 font-mono text-sm">
+            {shortAddr(account)}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onConnect}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground accent-glow hover:brightness-110"
+          >
+            Connect wallet
+          </button>
+        )}
+      </div>
+    </header>
+  );
+}
+
+function Logo() {
+  return (
+    <div className="relative h-10 w-10 rounded-lg accent-glow">
+      <div className="absolute inset-0 rounded-lg bg-accent" />
+      <div className="absolute inset-[3px] rounded-md bg-background" />
+      <div className="absolute inset-0 grid place-items-center font-display text-sm font-bold text-accent">
+        S
+      </div>
+    </div>
+  );
+}
+
+function TierBadge({ tier, apy }: { tier: string; apy: number }) {
+  return (
+    <div className="rounded-xl border border-accent/40 bg-accent-soft px-4 py-3 text-right">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        Nexus tier
+      </div>
+      <div className="font-display text-2xl font-semibold text-accent">
+        {tier}
+      </div>
+      <div className="text-xs text-muted-foreground">{apy}% APY unlocked</div>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  emphasis,
+  flash,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  emphasis?: boolean;
+  flash?: string | null;
+}) {
   return (
     <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
+      className={`relative rounded-xl border border-border bg-surface-2 p-4 ${
+        emphasis ? "accent-glow" : ""
+      }`}
     >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={`mt-2 font-display font-semibold ${
+          emphasis ? "text-3xl text-accent" : "text-2xl"
+        }`}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div className="mt-1 text-xs text-muted-foreground truncate">{sub}</div>
+      )}
+      {flash && (
+        <div className="rep-flash pointer-events-none absolute right-3 top-3 font-mono text-xs text-success">
+          {flash}
+        </div>
+      )}
     </div>
+  );
+}
+
+function TierLadder({
+  currentIndex,
+  progress,
+  nextTier: next,
+}: {
+  currentIndex: number;
+  progress: number;
+  nextTier: (typeof TIERS)[number] | null;
+}) {
+  return (
+    <div className="mt-8">
+      <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+        <span>Reputation ladder</span>
+        <span>
+          {next ? `Next: ${next.label} · ${next.apy}% APY` : "Top tier reached"}
+        </span>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {TIERS.map((t, i) => {
+          const active = i <= currentIndex;
+          const current = i === currentIndex;
+          return (
+            <div
+              key={t.tier}
+              className={`rounded-lg border p-3 text-left transition-colors ${
+                current
+                  ? "border-accent bg-accent-soft"
+                  : active
+                    ? "border-border bg-surface-2"
+                    : "border-border/50 bg-surface/40 opacity-60"
+              }`}
+            >
+              <div className="font-display text-sm font-semibold">
+                {t.tier}
+              </div>
+              <div className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+                {t.apy}% APY
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {next && (
+        <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+          <div
+            className="h-full rounded-full bg-accent transition-[width] duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityPanel({ rows }: { rows: ActivityRow[] }) {
+  return (
+    <section className="mt-6 card-surface p-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Recent on-chain activity</h2>
+        <span className="text-xs text-muted-foreground">
+          Signed by your address · verifiable on explorer
+        </span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="mt-4 text-sm text-muted-foreground">
+          Your transactions will appear here. Each row is a real event emitted
+          by the Sovereign Yield contract on OPN Chain.
+        </p>
+      ) : (
+        <div className="mt-4 divide-y divide-border">
+          {rows.map((r) => (
+            <div
+              key={r.hash}
+              className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 py-3 text-sm"
+            >
+              <span
+                className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${
+                  r.kind === "Deposit"
+                    ? "bg-accent-soft text-accent"
+                    : "bg-surface-2 text-muted-foreground"
+                }`}
+              >
+                {r.kind}
+              </span>
+              <span className="font-mono">
+                {Number(r.amount).toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                })}{" "}
+                {STABLECOIN_SYMBOL}
+              </span>
+              <span className="font-mono text-xs text-success">
+                {r.repDelta} REP
+              </span>
+              <a
+                className="font-mono text-xs text-accent hover:underline"
+                href={txExplorerUrl(r.hash)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {shortAddr(r.hash)} ↗
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DeploymentBanner() {
+  return (
+    <div className="mt-6 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm">
+      <div className="font-medium">Contract not yet configured</div>
+      <p className="mt-1 text-muted-foreground">
+        Deploy{" "}
+        <code className="text-warning">contracts/SovereignYield.sol</code> to
+        OPN Chain testnet (Chain ID {OPN_CHAIN.chainId}) along with a USDC-like
+        ERC20, then set{" "}
+        <code className="text-warning">VITE_SOVEREIGN_YIELD_ADDRESS</code> and{" "}
+        <code className="text-warning">VITE_STABLECOIN_ADDRESS</code>. The UI
+        will read live state and emit real{" "}
+        <code className="text-warning">ReputationBoosted</code> events on every
+        deposit and withdraw.
+      </p>
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center">
+      <p>
+        Your yield grows with your reputation. No anonymous farming.
+      </p>
+      <div className="flex items-center gap-4">
+        <a
+          className="hover:text-foreground"
+          href={OPN_CHAIN.blockExplorerUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          OPN Explorer ↗
+        </a>
+        {SOVEREIGN_YIELD_ADDRESS && (
+          <a
+            className="font-mono hover:text-foreground"
+            href={addrExplorerUrl(SOVEREIGN_YIELD_ADDRESS)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {shortAddr(SOVEREIGN_YIELD_ADDRESS)} ↗
+          </a>
+        )}
+      </div>
+    </footer>
   );
 }
