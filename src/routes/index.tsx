@@ -87,12 +87,17 @@ function SovereignYieldPage() {
   const [lastTx, setLastTx] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [repFlash, setRepFlash] = useState<string | null>(null);
+  const [onChainTierIdx, setOnChainTierIdx] = useState<number | null>(null);
   const flashTimer = useRef<number | null>(null);
 
-  const contractsConfigured =
-    !!SOVEREIGN_YIELD_ADDRESS && !!STABLECOIN_ADDRESS;
+  const contractsConfigured = !!SOVEREIGN_YIELD_ADDRESS;
+  const stablecoinConfigured = !!STABLECOIN_ADDRESS;
 
-  const tier = useMemo(() => tierForRep(reputation), [reputation]);
+  const derivedTier = useMemo(() => tierForRep(reputation), [reputation]);
+  const tier =
+    onChainTierIdx !== null && TIERS[onChainTierIdx]
+      ? TIERS[onChainTierIdx]
+      : derivedTier;
   const upcoming = useMemo(() => nextTier(reputation), [reputation]);
   const tierIndex = TIERS.findIndex((t) => t.tier === tier.tier);
 
@@ -105,11 +110,7 @@ function SovereignYieldPage() {
           SOVEREIGN_YIELD_ABI,
           readProvider,
         );
-        const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, readProvider);
-        const [acct, bal] = await Promise.all([
-          yieldC.getAccount(addr) as Promise<[bigint, bigint, bigint]>,
-          stable.balanceOf(addr) as Promise<bigint>,
-        ]);
+        const acct = (await yieldC.getAccount(addr)) as [bigint, bigint, bigint];
         setPrincipal(acct[0]);
         setReputation((prev) => {
           if (acct[1] > prev && prev !== 0n) {
@@ -120,12 +121,31 @@ function SovereignYieldPage() {
           }
           return acct[1];
         });
-        setWalletBalance(bal);
+
+        // Best-effort: contract may expose getCurrentTier(address) -> uint (0..4 or 1..5).
+        try {
+          const t = (await yieldC.getCurrentTier(addr)) as bigint;
+          const raw = Number(t);
+          const idx = raw >= 1 && raw <= TIERS.length ? raw - 1 : raw;
+          if (idx >= 0 && idx < TIERS.length) setOnChainTierIdx(idx);
+        } catch {
+          // contract doesn't expose it — fall back to REP-derived tier
+        }
+
+        if (stablecoinConfigured) {
+          try {
+            const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, readProvider);
+            const bal = (await stable.balanceOf(addr)) as bigint;
+            setWalletBalance(bal);
+          } catch (e) {
+            console.error("stablecoin balance failed", e);
+          }
+        }
       } catch (e) {
         console.error("refreshAccount failed", e);
       }
     },
-    [contractsConfigured],
+    [contractsConfigured, stablecoinConfigured],
   );
 
   const connect = useCallback(async () => {
@@ -258,6 +278,13 @@ function SovereignYieldPage() {
         const prevRep = reputation;
 
         if (kind === "deposit") {
+          if (!stablecoinConfigured) {
+            setError(
+              "Stablecoin address not set. Configure VITE_STABLECOIN_ADDRESS to enable deposits.",
+            );
+            setPending(null);
+            return;
+          }
           const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, signer);
           const allowance: bigint = await stable.allowance(
             account,
@@ -320,7 +347,7 @@ function SovereignYieldPage() {
         setPending(null);
       }
     },
-    [account, contractsConfigured, inputAmount, refreshAccount, reputation],
+    [account, contractsConfigured, stablecoinConfigured, inputAmount, refreshAccount, reputation],
   );
 
   const busy = pending !== null;
