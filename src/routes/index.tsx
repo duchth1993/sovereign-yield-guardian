@@ -87,12 +87,17 @@ function SovereignYieldPage() {
   const [lastTx, setLastTx] = useState<string | null>(null);
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [repFlash, setRepFlash] = useState<string | null>(null);
+  const [onChainTierIdx, setOnChainTierIdx] = useState<number | null>(null);
   const flashTimer = useRef<number | null>(null);
 
-  const contractsConfigured =
-    !!SOVEREIGN_YIELD_ADDRESS && !!STABLECOIN_ADDRESS;
+  const contractsConfigured = !!SOVEREIGN_YIELD_ADDRESS;
+  const stablecoinConfigured = !!STABLECOIN_ADDRESS;
 
-  const tier = useMemo(() => tierForRep(reputation), [reputation]);
+  const derivedTier = useMemo(() => tierForRep(reputation), [reputation]);
+  const tier =
+    onChainTierIdx !== null && TIERS[onChainTierIdx]
+      ? TIERS[onChainTierIdx]
+      : derivedTier;
   const upcoming = useMemo(() => nextTier(reputation), [reputation]);
   const tierIndex = TIERS.findIndex((t) => t.tier === tier.tier);
 
