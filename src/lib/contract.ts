@@ -30,6 +30,7 @@ export const SOVEREIGN_YIELD_ABI = [
   "function principal(address) view returns (uint256)",
   "function reputation(address) view returns (uint256)",
   "function getAccount(address user) view returns (uint256 _principal, uint256 _reputation, uint256 _lastAction)",
+  "function getCurrentTier(address user) view returns (uint256)",
   "event Deposited(address indexed user, uint256 amount, uint256 newPrincipal)",
   "event Withdrawn(address indexed user, uint256 amount, uint256 newPrincipal)",
   "event ReputationBoosted(address indexed user, uint256 newREP)",
