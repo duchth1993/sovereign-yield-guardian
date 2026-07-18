@@ -15,7 +15,8 @@ export const OPN_CHAIN = {
 // Paste deployed addresses here after `forge create` / `hardhat deploy`.
 // Leave empty strings to surface a clear "not deployed" state in the UI.
 export const SOVEREIGN_YIELD_ADDRESS =
-  (import.meta.env.VITE_SOVEREIGN_YIELD_ADDRESS as string | undefined) ?? "";
+  (import.meta.env.VITE_SOVEREIGN_YIELD_ADDRESS as string | undefined) ??
+  "0x2736f4D6FC0cC4ae3D8254a0dF131Fe9880Bd66f";
 export const STABLECOIN_ADDRESS =
   (import.meta.env.VITE_STABLECOIN_ADDRESS as string | undefined) ?? "";
 
