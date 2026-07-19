@@ -16,13 +16,14 @@ export const OPN_CHAIN = {
 // Leave empty strings to surface a clear "not deployed" state in the UI.
 export const SOVEREIGN_YIELD_ADDRESS =
   (import.meta.env.VITE_SOVEREIGN_YIELD_ADDRESS as string | undefined) ??
-  "0x2736f4D6FC0cC4ae3D8254a0dF131Fe9880Bd66f";
+  "0x25e0F2b9068295e6b82BB7d4E15B5FE668fB401B";
 export const STABLECOIN_ADDRESS =
-  (import.meta.env.VITE_STABLECOIN_ADDRESS as string | undefined) ?? "";
+  (import.meta.env.VITE_STABLECOIN_ADDRESS as string | undefined) ??
+  "0x3e01b4d892E0D0A219eF8BBe7e260a6bc8d9B31b";
 
-// USDC-style 6 decimals for the demo stablecoin.
+// tUSDT-style 6 decimals for the demo stablecoin.
 export const STABLECOIN_DECIMALS = 6;
-export const STABLECOIN_SYMBOL = "USDC";
+export const STABLECOIN_SYMBOL = "tUSDT";
 
 export const SOVEREIGN_YIELD_ABI = [
   "function deposit(uint256 amount) external",
