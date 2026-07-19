@@ -583,10 +583,14 @@ function Header({
   account,
   chainOk,
   onConnect,
+  onSwitchNetwork,
+  switching,
 }: {
   account: string | null;
   chainOk: boolean;
   onConnect: () => void;
+  onSwitchNetwork: () => void;
+  switching: boolean;
 }) {
   return (
     <header className="flex items-center justify-between">
@@ -612,6 +616,16 @@ function Header({
             {chainOk ? OPN_CHAIN.name : "Wrong network"}
           </span>
         </div>
+        {account && !chainOk && (
+          <button
+            type="button"
+            onClick={onSwitchNetwork}
+            disabled={switching}
+            className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-xs font-medium text-warning hover:bg-warning/20 disabled:opacity-60"
+          >
+            {switching ? "Switching…" : `Switch to ${OPN_CHAIN.name}`}
+          </button>
+        )}
         {account ? (
           <div className="rounded-lg border border-border bg-surface px-4 py-2 font-mono text-sm">
             {shortAddr(account)}
@@ -627,6 +641,33 @@ function Header({
         )}
       </div>
     </header>
+  );
+}
+
+function NetworkSwitchBanner({
+  onSwitch,
+  switching,
+}: {
+  onSwitch: () => void;
+  switching: boolean;
+}) {
+  return (
+    <div className="mt-6 flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="font-medium text-warning">Wrong network detected</div>
+        <p className="mt-1 text-muted-foreground">
+          Connect wallet to {OPN_CHAIN.name} (Chain ID {OPN_CHAIN.chainId}) to proceed.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onSwitch}
+        disabled={switching}
+        className="shrink-0 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground accent-glow hover:brightness-110 disabled:opacity-60"
+      >
+        {switching ? "Switching…" : `Switch to ${OPN_CHAIN.name}`}
+      </button>
+    </div>
   );
 }
 
