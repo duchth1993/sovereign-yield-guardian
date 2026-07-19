@@ -904,7 +904,7 @@ function Footer() {
   return (
     <footer className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center">
       <p>
-        Your yield grows with your reputation. No anonymous farming.
+        Your yield grows with your reputation. Verified on OPN Testnet.
       </p>
       <div className="flex items-center gap-4">
         <a
