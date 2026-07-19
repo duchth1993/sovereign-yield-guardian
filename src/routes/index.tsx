@@ -575,6 +575,30 @@ function SovereignYieldPage() {
         <ActivityPanel rows={activity} />
         <Footer />
       </div>
+      {repToast && (
+        <div className="pointer-events-none fixed bottom-6 right-6 z-50 rep-flash">
+          <div className="pointer-events-auto rounded-xl border border-success/40 bg-surface/95 px-4 py-3 shadow-2xl backdrop-blur">
+            <div className="flex items-center gap-3">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-success/15 font-mono text-sm font-semibold text-success">
+                ↑
+              </span>
+              <div>
+                <div className="font-mono text-sm text-success">
+                  REP {repToast.delta}
+                  {repToast.tier && (
+                    <span className="text-foreground">
+                      {" · "}Tier updated to {repToast.tier}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  ReputationBoosted · verified on-chain
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
