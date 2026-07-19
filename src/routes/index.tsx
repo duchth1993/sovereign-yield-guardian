@@ -417,7 +417,17 @@ function SovereignYieldPage() {
   return (
     <div className="min-h-screen grid-bg">
       <div className="mx-auto max-w-6xl px-6 py-10">
-        <Header account={account} chainOk={chainOk} onConnect={connect} />
+        <Header
+          account={account}
+          chainOk={chainOk}
+          onConnect={connect}
+          onSwitchNetwork={switchNetwork}
+          switching={switchingUi}
+        />
+
+        {account && !chainOk && (
+          <NetworkSwitchBanner onSwitch={switchNetwork} switching={switchingUi} />
+        )}
 
         {!contractsConfigured && <DeploymentBanner />}
 
