@@ -88,7 +88,11 @@ function SovereignYieldPage() {
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [repFlash, setRepFlash] = useState<string | null>(null);
   const [onChainTierIdx, setOnChainTierIdx] = useState<number | null>(null);
+  const [repToast, setRepToast] = useState<{ delta: string; tier: string | null } | null>(null);
+  const [switchingUi, setSwitchingUi] = useState(false);
   const flashTimer = useRef<number | null>(null);
+  const toastTimer = useRef<number | null>(null);
+  const prevTierRef = useRef<string | null>(null);
 
   const contractsConfigured = !!SOVEREIGN_YIELD_ADDRESS;
   const stablecoinConfigured = !!STABLECOIN_ADDRESS;
@@ -148,6 +152,51 @@ function SovereignYieldPage() {
     [contractsConfigured, stablecoinConfigured],
   );
 
+  const switchNetwork = useCallback(async () => {
+    setError(null);
+    const eth = getInjected();
+    if (!eth) {
+      setError("No wallet detected. Install MetaMask to switch to OPN Chain.");
+      return false;
+    }
+    setSwitchingUi(true);
+    try {
+      await eth.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: OPN_CHAIN.chainIdHex }],
+      });
+      setChainOk(true);
+      return true;
+    } catch (switchErr) {
+      const code = (switchErr as { code?: number }).code;
+      if (code === 4902) {
+        try {
+          await eth.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: OPN_CHAIN.chainIdHex,
+                chainName: OPN_CHAIN.name,
+                rpcUrls: [OPN_CHAIN.rpcUrl],
+                nativeCurrency: OPN_CHAIN.currency,
+                blockExplorerUrls: [OPN_CHAIN.blockExplorerUrl],
+              },
+            ],
+          });
+          setChainOk(true);
+          return true;
+        } catch (addErr) {
+          setError((addErr as Error).message ?? "Failed to add OPN Chain.");
+          return false;
+        }
+      }
+      setError((switchErr as Error).message ?? "Failed to switch network.");
+      return false;
+    } finally {
+      setSwitchingUi(false);
+    }
+  }, []);
+
   const connect = useCallback(async () => {
     setError(null);
     const eth = getInjected();
@@ -163,44 +212,31 @@ function SovereignYieldPage() {
       })) as string[];
       const addr = accounts[0];
       setAccount(addr);
-
-      // Try to switch to OPN Chain, add if unknown.
-      try {
-        await eth.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: OPN_CHAIN.chainIdHex }],
-        });
-        setChainOk(true);
-      } catch (switchErr) {
-        const code = (switchErr as { code?: number }).code;
-        if (code === 4902) {
-          await eth.request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: OPN_CHAIN.chainIdHex,
-                chainName: OPN_CHAIN.name,
-                rpcUrls: [OPN_CHAIN.rpcUrl],
-                nativeCurrency: OPN_CHAIN.currency,
-                blockExplorerUrls: [OPN_CHAIN.blockExplorerUrl],
-              },
-            ],
-          });
-          setChainOk(true);
-        } else {
-          throw switchErr;
-        }
-      }
+      await switchNetwork();
       await refreshAccount(addr);
     } catch (e) {
       setError((e as Error).message ?? "Wallet connection failed");
     }
-  }, [refreshAccount]);
+  }, [refreshAccount, switchNetwork]);
 
-  // Listen for account/chain changes
+  // Detect current chain on mount + listen for changes.
   useEffect(() => {
     const eth = getInjected();
-    if (!eth?.on) return;
+    if (!eth) return;
+    void (async () => {
+      try {
+        const cid = (await eth.request({ method: "eth_chainId" })) as string;
+        setChainOk(cid.toLowerCase() === OPN_CHAIN.chainIdHex);
+        const accs = (await eth.request({ method: "eth_accounts" })) as string[];
+        if (accs[0]) {
+          setAccount(accs[0]);
+          void refreshAccount(accs[0]);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    if (!eth.on) return;
     const onAcc = (accs: unknown) => {
       const list = accs as string[];
       setAccount(list[0] ?? null);
@@ -228,11 +264,24 @@ function SovereignYieldPage() {
     const filter = c.filters.ReputationBoosted(account);
     const handler = (_user: string, newRep: bigint) => {
       setReputation((prev) => {
-        if (newRep > prev && prev !== 0n) {
+        if (newRep > prev) {
           const delta = newRep - prev;
           setRepFlash(`+${delta.toString()} REP`);
           if (flashTimer.current) window.clearTimeout(flashTimer.current);
           flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
+
+          const newTier = tierForRep(newRep);
+          const tierChanged =
+            prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
+          setRepToast({
+            delta: `+${delta.toString()}`,
+            tier: tierChanged ? newTier.tier : null,
+          });
+          prevTierRef.current = newTier.tier;
+          if (toastTimer.current) window.clearTimeout(toastTimer.current);
+          toastTimer.current = window.setTimeout(() => setRepToast(null), 5000);
+        } else {
+          prevTierRef.current = tierForRep(newRep).tier;
         }
         return newRep;
       });
@@ -368,7 +417,17 @@ function SovereignYieldPage() {
   return (
     <div className="min-h-screen grid-bg">
       <div className="mx-auto max-w-6xl px-6 py-10">
-        <Header account={account} chainOk={chainOk} onConnect={connect} />
+        <Header
+          account={account}
+          chainOk={chainOk}
+          onConnect={connect}
+          onSwitchNetwork={switchNetwork}
+          switching={switchingUi}
+        />
+
+        {account && !chainOk && (
+          <NetworkSwitchBanner onSwitch={switchNetwork} switching={switchingUi} />
+        )}
 
         {!contractsConfigured && <DeploymentBanner />}
 
@@ -400,7 +459,9 @@ function SovereignYieldPage() {
                 value={`${tier.apy.toFixed(2)}%`}
                 sub={`${tier.label}`}
                 emphasis
+                badge="Verified on-chain"
               />
+
               <Stat
                 label="On-chain REP"
                 value={reputation.toString()}
@@ -514,6 +575,30 @@ function SovereignYieldPage() {
         <ActivityPanel rows={activity} />
         <Footer />
       </div>
+      {repToast && (
+        <div className="pointer-events-none fixed bottom-6 right-6 z-50 rep-flash">
+          <div className="pointer-events-auto rounded-xl border border-success/40 bg-surface/95 px-4 py-3 shadow-2xl backdrop-blur">
+            <div className="flex items-center gap-3">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-success/15 font-mono text-sm font-semibold text-success">
+                ↑
+              </span>
+              <div>
+                <div className="font-mono text-sm text-success">
+                  REP {repToast.delta}
+                  {repToast.tier && (
+                    <span className="text-foreground">
+                      {" · "}Tier updated to {repToast.tier}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  ReputationBoosted · verified on-chain
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -522,10 +607,14 @@ function Header({
   account,
   chainOk,
   onConnect,
+  onSwitchNetwork,
+  switching,
 }: {
   account: string | null;
   chainOk: boolean;
   onConnect: () => void;
+  onSwitchNetwork: () => void;
+  switching: boolean;
 }) {
   return (
     <header className="flex items-center justify-between">
@@ -551,6 +640,16 @@ function Header({
             {chainOk ? OPN_CHAIN.name : "Wrong network"}
           </span>
         </div>
+        {account && !chainOk && (
+          <button
+            type="button"
+            onClick={onSwitchNetwork}
+            disabled={switching}
+            className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-xs font-medium text-warning hover:bg-warning/20 disabled:opacity-60"
+          >
+            {switching ? "Switching…" : `Switch to ${OPN_CHAIN.name}`}
+          </button>
+        )}
         {account ? (
           <div className="rounded-lg border border-border bg-surface px-4 py-2 font-mono text-sm">
             {shortAddr(account)}
@@ -566,6 +665,33 @@ function Header({
         )}
       </div>
     </header>
+  );
+}
+
+function NetworkSwitchBanner({
+  onSwitch,
+  switching,
+}: {
+  onSwitch: () => void;
+  switching: boolean;
+}) {
+  return (
+    <div className="mt-6 flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="font-medium text-warning">Wrong network detected</div>
+        <p className="mt-1 text-muted-foreground">
+          Connect wallet to {OPN_CHAIN.name} (Chain ID {OPN_CHAIN.chainId}) to proceed.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onSwitch}
+        disabled={switching}
+        className="shrink-0 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground accent-glow hover:brightness-110 disabled:opacity-60"
+      >
+        {switching ? "Switching…" : `Switch to ${OPN_CHAIN.name}`}
+      </button>
+    </div>
   );
 }
 
@@ -601,12 +727,14 @@ function Stat({
   sub,
   emphasis,
   flash,
+  badge,
 }: {
   label: string;
   value: string;
   sub?: string;
   emphasis?: boolean;
   flash?: string | null;
+  badge?: string;
 }) {
   return (
     <div
@@ -614,8 +742,16 @@ function Stat({
         emphasis ? "accent-glow" : ""
       }`}
     >
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-        {label}
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          {label}
+        </div>
+        {badge && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-widest text-success">
+            <span className="h-1 w-1 rounded-full bg-success" />
+            {badge}
+          </span>
+        )}
       </div>
       <div
         className={`mt-2 font-display font-semibold ${
