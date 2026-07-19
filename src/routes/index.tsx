@@ -152,6 +152,51 @@ function SovereignYieldPage() {
     [contractsConfigured, stablecoinConfigured],
   );
 
+  const switchNetwork = useCallback(async () => {
+    setError(null);
+    const eth = getInjected();
+    if (!eth) {
+      setError("No wallet detected. Install MetaMask to switch to OPN Chain.");
+      return false;
+    }
+    setSwitchingUi(true);
+    try {
+      await eth.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: OPN_CHAIN.chainIdHex }],
+      });
+      setChainOk(true);
+      return true;
+    } catch (switchErr) {
+      const code = (switchErr as { code?: number }).code;
+      if (code === 4902) {
+        try {
+          await eth.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: OPN_CHAIN.chainIdHex,
+                chainName: OPN_CHAIN.name,
+                rpcUrls: [OPN_CHAIN.rpcUrl],
+                nativeCurrency: OPN_CHAIN.currency,
+                blockExplorerUrls: [OPN_CHAIN.blockExplorerUrl],
+              },
+            ],
+          });
+          setChainOk(true);
+          return true;
+        } catch (addErr) {
+          setError((addErr as Error).message ?? "Failed to add OPN Chain.");
+          return false;
+        }
+      }
+      setError((switchErr as Error).message ?? "Failed to switch network.");
+      return false;
+    } finally {
+      setSwitchingUi(false);
+    }
+  }, []);
+
   const connect = useCallback(async () => {
     setError(null);
     const eth = getInjected();
@@ -167,44 +212,31 @@ function SovereignYieldPage() {
       })) as string[];
       const addr = accounts[0];
       setAccount(addr);
-
-      // Try to switch to OPN Chain, add if unknown.
-      try {
-        await eth.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: OPN_CHAIN.chainIdHex }],
-        });
-        setChainOk(true);
-      } catch (switchErr) {
-        const code = (switchErr as { code?: number }).code;
-        if (code === 4902) {
-          await eth.request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: OPN_CHAIN.chainIdHex,
-                chainName: OPN_CHAIN.name,
-                rpcUrls: [OPN_CHAIN.rpcUrl],
-                nativeCurrency: OPN_CHAIN.currency,
-                blockExplorerUrls: [OPN_CHAIN.blockExplorerUrl],
-              },
-            ],
-          });
-          setChainOk(true);
-        } else {
-          throw switchErr;
-        }
-      }
+      await switchNetwork();
       await refreshAccount(addr);
     } catch (e) {
       setError((e as Error).message ?? "Wallet connection failed");
     }
-  }, [refreshAccount]);
+  }, [refreshAccount, switchNetwork]);
 
-  // Listen for account/chain changes
+  // Detect current chain on mount + listen for changes.
   useEffect(() => {
     const eth = getInjected();
-    if (!eth?.on) return;
+    if (!eth) return;
+    void (async () => {
+      try {
+        const cid = (await eth.request({ method: "eth_chainId" })) as string;
+        setChainOk(cid.toLowerCase() === OPN_CHAIN.chainIdHex);
+        const accs = (await eth.request({ method: "eth_accounts" })) as string[];
+        if (accs[0]) {
+          setAccount(accs[0]);
+          void refreshAccount(accs[0]);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    if (!eth.on) return;
     const onAcc = (accs: unknown) => {
       const list = accs as string[];
       setAccount(list[0] ?? null);
@@ -232,11 +264,24 @@ function SovereignYieldPage() {
     const filter = c.filters.ReputationBoosted(account);
     const handler = (_user: string, newRep: bigint) => {
       setReputation((prev) => {
-        if (newRep > prev && prev !== 0n) {
+        if (newRep > prev) {
           const delta = newRep - prev;
           setRepFlash(`+${delta.toString()} REP`);
           if (flashTimer.current) window.clearTimeout(flashTimer.current);
           flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
+
+          const newTier = tierForRep(newRep);
+          const tierChanged =
+            prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
+          setRepToast({
+            delta: `+${delta.toString()}`,
+            tier: tierChanged ? newTier.tier : null,
+          });
+          prevTierRef.current = newTier.tier;
+          if (toastTimer.current) window.clearTimeout(toastTimer.current);
+          toastTimer.current = window.setTimeout(() => setRepToast(null), 5000);
+        } else {
+          prevTierRef.current = tierForRep(newRep).tier;
         }
         return newRep;
       });
