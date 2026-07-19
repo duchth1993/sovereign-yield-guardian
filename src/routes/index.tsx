@@ -459,7 +459,9 @@ function SovereignYieldPage() {
                 value={`${tier.apy.toFixed(2)}%`}
                 sub={`${tier.label}`}
                 emphasis
+                badge="Verified on-chain"
               />
+
               <Stat
                 label="On-chain REP"
                 value={reputation.toString()}
