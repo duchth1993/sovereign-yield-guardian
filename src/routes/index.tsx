@@ -703,12 +703,14 @@ function Stat({
   sub,
   emphasis,
   flash,
+  badge,
 }: {
   label: string;
   value: string;
   sub?: string;
   emphasis?: boolean;
   flash?: string | null;
+  badge?: string;
 }) {
   return (
     <div
@@ -716,8 +718,16 @@ function Stat({
         emphasis ? "accent-glow" : ""
       }`}
     >
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-        {label}
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          {label}
+        </div>
+        {badge && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-widest text-success">
+            <span className="h-1 w-1 rounded-full bg-success" />
+            {badge}
+          </span>
+        )}
       </div>
       <div
         className={`mt-2 font-display font-semibold ${
