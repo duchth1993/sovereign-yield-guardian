@@ -88,7 +88,11 @@ function SovereignYieldPage() {
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [repFlash, setRepFlash] = useState<string | null>(null);
   const [onChainTierIdx, setOnChainTierIdx] = useState<number | null>(null);
+  const [repToast, setRepToast] = useState<{ delta: string; tier: string | null } | null>(null);
+  const [switchingUi, setSwitchingUi] = useState(false);
   const flashTimer = useRef<number | null>(null);
+  const toastTimer = useRef<number | null>(null);
+  const prevTierRef = useRef<string | null>(null);
 
   const contractsConfigured = !!SOVEREIGN_YIELD_ADDRESS;
   const stablecoinConfigured = !!STABLECOIN_ADDRESS;
