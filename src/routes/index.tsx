@@ -8,6 +8,7 @@ import {
   parseUnits,
   type Eip1193Provider,
 } from "ethers";
+import { Unplug } from "lucide-react";
 import {
   ERC20_ABI,
   OPN_CHAIN,
