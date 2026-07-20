@@ -311,6 +311,31 @@ function SovereignYieldPage() {
     };
   }, [account, contractsConfigured]);
 
+  const pushRepToast = useCallback((hash: string, delta: bigint, newRep: bigint) => {
+    if (hash) {
+      if (seenTxRef.current.has(hash)) return;
+      seenTxRef.current.add(hash);
+      setLastTx(hash);
+    }
+    if (delta > 0n) {
+      setRepFlash(`+${delta.toString()} REP`);
+      if (flashTimer.current) window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
+    }
+    const newTier = tierForRep(newRep);
+    const tierChanged =
+      prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
+    setRepToast({
+      delta: `+${delta.toString()}`,
+      tier: tierChanged ? newTier.tier : null,
+      hash: hash || null,
+    });
+    prevTierRef.current = newTier.tier;
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setRepToast(null), 8000);
+  }, []);
+
+
   const runTx = useCallback(
     async (kind: "deposit" | "withdraw") => {
       setError(null);
