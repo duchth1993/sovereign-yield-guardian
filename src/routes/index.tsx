@@ -699,12 +699,14 @@ function Header({
   account,
   chainOk,
   onConnect,
+  onDisconnect,
   onSwitchNetwork,
   switching,
 }: {
   account: string | null;
   chainOk: boolean;
   onConnect: () => void;
+  onDisconnect: () => void;
   onSwitchNetwork: () => void;
   switching: boolean;
 }) {
@@ -743,8 +745,18 @@ function Header({
           </button>
         )}
         {account ? (
-          <div className="rounded-lg border border-border bg-surface px-4 py-2 font-mono text-sm">
-            {shortAddr(account)}
+          <div className="flex items-center gap-2">
+            <div className="rounded-lg border border-border bg-surface px-4 py-2 font-mono text-sm">
+              {shortAddr(account)}
+            </div>
+            <button
+              type="button"
+              onClick={onDisconnect}
+              title="Disconnect wallet"
+              className="inline-flex items-center justify-center rounded-lg border border-border bg-surface p-2.5 text-muted-foreground transition-colors hover:border-accent hover:text-accent"
+            >
+              <Unplug size={18} />
+            </button>
           </div>
         ) : (
           <button
