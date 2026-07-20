@@ -760,6 +760,7 @@ function Header({
               type="button"
               onClick={onDisconnect}
               title="Disconnect wallet"
+              aria-label="Disconnect wallet"
               className="inline-flex items-center justify-center rounded-lg border border-border bg-surface p-2.5 text-muted-foreground transition-colors hover:border-accent hover:text-accent"
             >
               <Unplug size={18} />
