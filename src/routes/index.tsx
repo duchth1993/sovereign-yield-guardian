@@ -105,9 +105,7 @@ function SovereignYieldPage() {
 
   const derivedTier = useMemo(() => tierForRep(reputation), [reputation]);
   const tier =
-    onChainTierIdx !== null && TIERS[onChainTierIdx]
-      ? TIERS[onChainTierIdx]
-      : derivedTier;
+    onChainTierIdx !== null && TIERS[onChainTierIdx] ? TIERS[onChainTierIdx] : derivedTier;
   const upcoming = useMemo(() => nextTier(reputation), [reputation]);
   const tierIndex = TIERS.findIndex((t) => t.tier === tier.tier);
 
@@ -115,11 +113,7 @@ function SovereignYieldPage() {
     async (addr: string) => {
       if (!contractsConfigured) return;
       try {
-        const yieldC = new Contract(
-          SOVEREIGN_YIELD_ADDRESS,
-          SOVEREIGN_YIELD_ABI,
-          readProvider,
-        );
+        const yieldC = new Contract(SOVEREIGN_YIELD_ADDRESS, SOVEREIGN_YIELD_ABI, readProvider);
         const acct = (await yieldC.getAccount(addr)) as [bigint, bigint, bigint];
         setPrincipal(acct[0]);
         setReputation((prev) => {
@@ -303,11 +297,7 @@ function SovereignYieldPage() {
   // Subscribe to ReputationBoosted for the current account (live REP updates).
   useEffect(() => {
     if (!account || !contractsConfigured) return;
-    const c = new Contract(
-      SOVEREIGN_YIELD_ADDRESS,
-      SOVEREIGN_YIELD_ABI,
-      readProvider,
-    );
+    const c = new Contract(SOVEREIGN_YIELD_ADDRESS, SOVEREIGN_YIELD_ABI, readProvider);
     const filter = c.filters.ReputationBoosted(account);
     // Safe ethers v6 pattern: last arg is the EventPayload with .log.transactionHash.
     const handler = (...args: unknown[]) => {
@@ -365,8 +355,7 @@ function SovereignYieldPage() {
       flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
     }
     const newTier = tierForRep(newRep);
-    const tierChanged =
-      prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
+    const tierChanged = prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
     setRepToast({
       delta: `+${delta.toString()}`,
       tier: tierChanged ? newTier.tier : null,
@@ -376,7 +365,6 @@ function SovereignYieldPage() {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setRepToast(null), 8000);
   }, []);
-
 
   const runTx = useCallback(
     async (kind: "deposit" | "withdraw") => {
@@ -404,11 +392,7 @@ function SovereignYieldPage() {
       try {
         const browserProvider = new BrowserProvider(eth);
         const signer = await browserProvider.getSigner();
-        const yieldC = new Contract(
-          SOVEREIGN_YIELD_ADDRESS,
-          SOVEREIGN_YIELD_ABI,
-          signer,
-        );
+        const yieldC = new Contract(SOVEREIGN_YIELD_ADDRESS, SOVEREIGN_YIELD_ABI, signer);
 
         const prevRep = reputation;
 
@@ -421,10 +405,7 @@ function SovereignYieldPage() {
             return;
           }
           const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, signer);
-          const allowance: bigint = await stable.allowance(
-            account,
-            SOVEREIGN_YIELD_ADDRESS,
-          );
+          const allowance: bigint = await stable.allowance(account, SOVEREIGN_YIELD_ADDRESS);
           if (allowance < amount) {
             setPending("approve");
             const approveTx = await stable.approve(SOVEREIGN_YIELD_ADDRESS, amount);
@@ -435,9 +416,11 @@ function SovereignYieldPage() {
           setLastTx(tx.hash);
           const receipt = await tx.wait();
           await refreshAccount(account);
-          const newRep = await (
-            new Contract(SOVEREIGN_YIELD_ADDRESS, SOVEREIGN_YIELD_ABI, readProvider)
-          ).reputation(account) as bigint;
+          const newRep = (await new Contract(
+            SOVEREIGN_YIELD_ADDRESS,
+            SOVEREIGN_YIELD_ABI,
+            readProvider,
+          ).reputation(account)) as bigint;
           setActivity((rows) =>
             [
               {
@@ -457,9 +440,11 @@ function SovereignYieldPage() {
           setLastTx(tx.hash);
           await tx.wait();
           await refreshAccount(account);
-          const newRep = await (
-            new Contract(SOVEREIGN_YIELD_ADDRESS, SOVEREIGN_YIELD_ABI, readProvider)
-          ).reputation(account) as bigint;
+          const newRep = (await new Contract(
+            SOVEREIGN_YIELD_ADDRESS,
+            SOVEREIGN_YIELD_ABI,
+            readProvider,
+          ).reputation(account)) as bigint;
           setActivity((rows) =>
             [
               {
@@ -484,7 +469,15 @@ function SovereignYieldPage() {
         setPending(null);
       }
     },
-    [account, contractsConfigured, stablecoinConfigured, inputAmount, refreshAccount, reputation, pushRepToast],
+    [
+      account,
+      contractsConfigured,
+      stablecoinConfigured,
+      inputAmount,
+      refreshAccount,
+      reputation,
+      pushRepToast,
+    ],
   );
 
   const busy = pending !== null;
@@ -535,8 +528,8 @@ function SovereignYieldPage() {
                   Sovereign Yield
                 </h1>
                 <p className="mt-3 max-w-lg text-muted-foreground">
-                  A permissionless yield optimizer where APY scales with your
-                  Nexus REP tier. Every deposit updates your on-chain reputation.
+                  A permissionless yield optimizer where APY scales with your Nexus REP tier. Every
+                  deposit updates your on-chain reputation.
                 </p>
               </div>
               <TierBadge tier={tier.tier} apy={tier.apy} />
@@ -594,9 +587,7 @@ function SovereignYieldPage() {
               <input
                 inputMode="decimal"
                 value={inputAmount}
-                onChange={(e) =>
-                  setInputAmount(e.target.value.replace(/[^\d.]/g, ""))
-                }
+                onChange={(e) => setInputAmount(e.target.value.replace(/[^\d.]/g, ""))}
                 placeholder="0.00"
                 className="w-full bg-transparent text-2xl font-display outline-none placeholder:text-muted-foreground"
               />
@@ -722,9 +713,7 @@ function Header({
       <div className="flex items-center gap-3">
         <Logo />
         <div>
-          <div className="font-display text-lg font-semibold leading-none">
-            Sovereign Yield
-          </div>
+          <div className="font-display text-lg font-semibold leading-none">Sovereign Yield</div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             Nexus REP · NeoID-bound
           </div>
@@ -732,11 +721,7 @@ function Header({
       </div>
       <div className="flex items-center gap-3">
         <div className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs">
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              chainOk ? "bg-success" : "bg-warning"
-            }`}
-          />
+          <span className={`h-1.5 w-1.5 rounded-full ${chainOk ? "bg-success" : "bg-warning"}`} />
           <span className="text-muted-foreground">
             {chainOk ? OPN_CHAIN.name : "Wrong network"}
           </span>
@@ -825,9 +810,7 @@ function TierBadge({ tier, apy }: { tier: string; apy: number }) {
       <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
         Nexus tier
       </div>
-      <div className="font-display text-2xl font-semibold text-accent">
-        {tier}
-      </div>
+      <div className="font-display text-2xl font-semibold text-accent">{tier}</div>
       <div className="text-xs text-muted-foreground">{apy}% APY unlocked</div>
     </div>
   );
@@ -855,9 +838,7 @@ function Stat({
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          {label}
-        </div>
+        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
         {badge && (
           <span className="inline-flex items-center gap-1 rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-widest text-success">
             <span className="h-1 w-1 rounded-full bg-success" />
@@ -872,9 +853,7 @@ function Stat({
       >
         {value}
       </div>
-      {sub && (
-        <div className="mt-1 text-xs text-muted-foreground truncate">{sub}</div>
-      )}
+      {sub && <div className="mt-1 text-xs text-muted-foreground truncate">{sub}</div>}
       {flash && (
         <div className="rep-flash pointer-events-none absolute right-3 top-3 font-mono text-xs text-success">
           {flash}
@@ -897,9 +876,7 @@ function TierLadder({
     <div className="mt-8">
       <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
         <span>Reputation ladder</span>
-        <span>
-          {next ? `Next: ${next.label} · ${next.apy}% APY` : "Top tier reached"}
-        </span>
+        <span>{next ? `Next: ${next.label} · ${next.apy}% APY` : "Top tier reached"}</span>
       </div>
       <div className="grid grid-cols-5 gap-2">
         {TIERS.map((t, i) => {
@@ -916,9 +893,7 @@ function TierLadder({
                     : "border-border/50 bg-surface/40 opacity-60"
               }`}
             >
-              <div className="font-display text-sm font-semibold">
-                {t.tier}
-              </div>
+              <div className="font-display text-sm font-semibold">{t.tier}</div>
               <div className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
                 {t.apy}% APY
               </div>
@@ -949,8 +924,8 @@ function ActivityPanel({ rows }: { rows: ActivityRow[] }) {
       </div>
       {rows.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          Your transactions will appear here. Each row is a real event emitted
-          by the Sovereign Yield contract on OPN Chain.
+          Your transactions will appear here. Each row is a real event emitted by the Sovereign
+          Yield contract on OPN Chain.
         </p>
       ) : (
         <div className="mt-4 divide-y divide-border">
@@ -974,9 +949,7 @@ function ActivityPanel({ rows }: { rows: ActivityRow[] }) {
                 })}{" "}
                 {STABLECOIN_SYMBOL}
               </span>
-              <span className="font-mono text-xs text-success">
-                {r.repDelta} REP
-              </span>
+              <span className="font-mono text-xs text-success">{r.repDelta} REP</span>
               <a
                 className="font-mono text-xs text-accent hover:underline"
                 href={txExplorerUrl(r.hash)}
@@ -998,14 +971,11 @@ function DeploymentBanner() {
     <div className="mt-6 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm">
       <div className="font-medium">Contract not yet configured</div>
       <p className="mt-1 text-muted-foreground">
-        Deploy{" "}
-        <code className="text-warning">contracts/SovereignYield.sol</code> to
-        OPN Chain testnet (Chain ID {OPN_CHAIN.chainId}) along with a USDC-like
-        ERC20, then set{" "}
+        Deploy <code className="text-warning">contracts/SovereignYield.sol</code> to OPN Chain
+        testnet (Chain ID {OPN_CHAIN.chainId}) along with a USDC-like ERC20, then set{" "}
         <code className="text-warning">VITE_SOVEREIGN_YIELD_ADDRESS</code> and{" "}
-        <code className="text-warning">VITE_STABLECOIN_ADDRESS</code>. The UI
-        will read live state and emit real{" "}
-        <code className="text-warning">ReputationBoosted</code> events on every
+        <code className="text-warning">VITE_STABLECOIN_ADDRESS</code>. The UI will read live state
+        and emit real <code className="text-warning">ReputationBoosted</code> events on every
         deposit and withdraw.
       </p>
     </div>
@@ -1015,9 +985,7 @@ function DeploymentBanner() {
 function Footer() {
   return (
     <footer className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center">
-      <p>
-        Your yield grows with your reputation. Verified on OPN Testnet.
-      </p>
+      <p>Your yield grows with your reputation. Verified on OPN Testnet.</p>
       <div className="flex items-center gap-4">
         <a
           className="hover:text-foreground"
