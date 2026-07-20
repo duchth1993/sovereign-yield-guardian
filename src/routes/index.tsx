@@ -237,13 +237,20 @@ function SovereignYieldPage() {
       } catch {
         /* ignore */
       }
+      try {
+        const cid = (await eth.request({ method: "eth_chainId" })) as string;
+        setChainOk(cid.toLowerCase() === OPN_CHAIN.chainIdHex);
+      } catch {
+        setChainOk(false);
+      }
+    } else {
+      setChainOk(false);
     }
     if (flashTimer.current) window.clearTimeout(flashTimer.current);
     flashTimer.current = null;
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = null;
     setAccount(null);
-    setChainOk(false);
     setPrincipal(0n);
     setReputation(0n);
     setWalletBalance(0n);
