@@ -502,6 +502,7 @@ function SovereignYieldPage() {
           account={account}
           chainOk={chainOk}
           onConnect={connect}
+          onDisconnect={disconnect}
           onSwitchNetwork={switchNetwork}
           switching={switchingUi}
         />
