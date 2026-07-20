@@ -88,11 +88,16 @@ function SovereignYieldPage() {
   const [activity, setActivity] = useState<ActivityRow[]>([]);
   const [repFlash, setRepFlash] = useState<string | null>(null);
   const [onChainTierIdx, setOnChainTierIdx] = useState<number | null>(null);
-  const [repToast, setRepToast] = useState<{ delta: string; tier: string | null } | null>(null);
+  const [repToast, setRepToast] = useState<{
+    delta: string;
+    tier: string | null;
+    hash: string | null;
+  } | null>(null);
   const [switchingUi, setSwitchingUi] = useState(false);
   const flashTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
   const prevTierRef = useRef<string | null>(null);
+  const seenTxRef = useRef<Set<string>>(new Set());
 
   const contractsConfigured = !!SOVEREIGN_YIELD_ADDRESS;
   const stablecoinConfigured = !!STABLECOIN_ADDRESS;
@@ -262,35 +267,74 @@ function SovereignYieldPage() {
       readProvider,
     );
     const filter = c.filters.ReputationBoosted(account);
-    const handler = (_user: string, newRep: bigint) => {
-      setReputation((prev) => {
-        if (newRep > prev) {
-          const delta = newRep - prev;
-          setRepFlash(`+${delta.toString()} REP`);
-          if (flashTimer.current) window.clearTimeout(flashTimer.current);
-          flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
-
-          const newTier = tierForRep(newRep);
-          const tierChanged =
-            prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
-          setRepToast({
-            delta: `+${delta.toString()}`,
-            tier: tierChanged ? newTier.tier : null,
-          });
-          prevTierRef.current = newTier.tier;
-          if (toastTimer.current) window.clearTimeout(toastTimer.current);
-          toastTimer.current = window.setTimeout(() => setRepToast(null), 5000);
-        } else {
-          prevTierRef.current = tierForRep(newRep).tier;
+    // Safe ethers v6 pattern: last arg is the EventPayload with .log.transactionHash.
+    const handler = (...args: unknown[]) => {
+      try {
+        const newRep = args[1] as bigint;
+        const payload = args[args.length - 1] as { log?: { transactionHash?: string } };
+        const hash = payload?.log?.transactionHash ?? null;
+        if (hash) {
+          if (seenTxRef.current.has(hash)) return;
+          seenTxRef.current.add(hash);
         }
-        return newRep;
-      });
+        if (hash) setLastTx(hash);
+        setReputation((prev) => {
+          if (newRep > prev) {
+            const delta = newRep - prev;
+            setRepFlash(`+${delta.toString()} REP`);
+            if (flashTimer.current) window.clearTimeout(flashTimer.current);
+            flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
+
+            const newTier = tierForRep(newRep);
+            const tierChanged =
+              prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
+            setRepToast({
+              delta: `+${delta.toString()}`,
+              tier: tierChanged ? newTier.tier : null,
+              hash,
+            });
+            prevTierRef.current = newTier.tier;
+            if (toastTimer.current) window.clearTimeout(toastTimer.current);
+            toastTimer.current = window.setTimeout(() => setRepToast(null), 8000);
+          } else {
+            prevTierRef.current = tierForRep(newRep).tier;
+          }
+          return newRep;
+        });
+      } catch (err) {
+        console.error("ReputationBoosted handler failed", err);
+      }
     };
     c.on(filter, handler);
     return () => {
-      c.off(filter, handler);
+      void c.off(filter, handler);
     };
   }, [account, contractsConfigured]);
+
+  const pushRepToast = useCallback((hash: string, delta: bigint, newRep: bigint) => {
+    if (hash) {
+      if (seenTxRef.current.has(hash)) return;
+      seenTxRef.current.add(hash);
+      setLastTx(hash);
+    }
+    if (delta > 0n) {
+      setRepFlash(`+${delta.toString()} REP`);
+      if (flashTimer.current) window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
+    }
+    const newTier = tierForRep(newRep);
+    const tierChanged =
+      prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
+    setRepToast({
+      delta: `+${delta.toString()}`,
+      tier: tierChanged ? newTier.tier : null,
+      hash: hash || null,
+    });
+    prevTierRef.current = newTier.tier;
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setRepToast(null), 8000);
+  }, []);
+
 
   const runTx = useCallback(
     async (kind: "deposit" | "withdraw") => {
@@ -364,6 +408,7 @@ function SovereignYieldPage() {
               ...rows,
             ].slice(0, 6),
           );
+          pushRepToast(tx.hash, newRep - prevRep, newRep);
         } else {
           setPending("withdraw");
           const tx = await yieldC.withdraw(amount);
@@ -385,6 +430,7 @@ function SovereignYieldPage() {
               ...rows,
             ].slice(0, 6),
           );
+          pushRepToast(tx.hash, newRep - prevRep, newRep);
         }
       } catch (e) {
         const msg =
@@ -396,7 +442,7 @@ function SovereignYieldPage() {
         setPending(null);
       }
     },
-    [account, contractsConfigured, stablecoinConfigured, inputAmount, refreshAccount, reputation],
+    [account, contractsConfigured, stablecoinConfigured, inputAmount, refreshAccount, reputation, pushRepToast],
   );
 
   const busy = pending !== null;
@@ -594,6 +640,16 @@ function SovereignYieldPage() {
                 <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                   ReputationBoosted · verified on-chain
                 </div>
+                {repToast.hash && (
+                  <a
+                    href={txExplorerUrl(repToast.hash)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 block font-mono text-[11px] text-accent hover:underline"
+                  >
+                    Verified: {shortAddr(repToast.hash)} ↗
+                  </a>
+                )}
               </div>
             </div>
           </div>
