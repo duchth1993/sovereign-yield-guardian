@@ -225,6 +225,40 @@ function SovereignYieldPage() {
     }
   }, [refreshAccount, switchNetwork]);
 
+  const disconnect = useCallback(async () => {
+    const eth = getInjected();
+    if (eth) {
+      try {
+        // Best-effort revoke; not all wallets implement it.
+        await eth.request({
+          method: "wallet_revokePermissions",
+          params: [{ eth_accounts: {} }],
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = null;
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = null;
+    setAccount(null);
+    setChainOk(false);
+    setPrincipal(0n);
+    setReputation(0n);
+    setWalletBalance(0n);
+    setInputAmount("100");
+    setPending(null);
+    setError(null);
+    setLastTx(null);
+    setActivity([]);
+    setRepFlash(null);
+    setOnChainTierIdx(null);
+    setRepToast(null);
+    prevTierRef.current = null;
+    seenTxRef.current.clear();
+  }, []);
+
   // Detect current chain on mount + listen for changes.
   useEffect(() => {
     const eth = getInjected();
