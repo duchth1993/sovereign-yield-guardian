@@ -267,33 +267,47 @@ function SovereignYieldPage() {
       readProvider,
     );
     const filter = c.filters.ReputationBoosted(account);
-    const handler = (_user: string, newRep: bigint) => {
-      setReputation((prev) => {
-        if (newRep > prev) {
-          const delta = newRep - prev;
-          setRepFlash(`+${delta.toString()} REP`);
-          if (flashTimer.current) window.clearTimeout(flashTimer.current);
-          flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
-
-          const newTier = tierForRep(newRep);
-          const tierChanged =
-            prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
-          setRepToast({
-            delta: `+${delta.toString()}`,
-            tier: tierChanged ? newTier.tier : null,
-          });
-          prevTierRef.current = newTier.tier;
-          if (toastTimer.current) window.clearTimeout(toastTimer.current);
-          toastTimer.current = window.setTimeout(() => setRepToast(null), 5000);
-        } else {
-          prevTierRef.current = tierForRep(newRep).tier;
+    // Safe ethers v6 pattern: last arg is the EventPayload with .log.transactionHash.
+    const handler = (...args: unknown[]) => {
+      try {
+        const newRep = args[1] as bigint;
+        const payload = args[args.length - 1] as { log?: { transactionHash?: string } };
+        const hash = payload?.log?.transactionHash ?? null;
+        if (hash) {
+          if (seenTxRef.current.has(hash)) return;
+          seenTxRef.current.add(hash);
         }
-        return newRep;
-      });
+        if (hash) setLastTx(hash);
+        setReputation((prev) => {
+          if (newRep > prev) {
+            const delta = newRep - prev;
+            setRepFlash(`+${delta.toString()} REP`);
+            if (flashTimer.current) window.clearTimeout(flashTimer.current);
+            flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
+
+            const newTier = tierForRep(newRep);
+            const tierChanged =
+              prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
+            setRepToast({
+              delta: `+${delta.toString()}`,
+              tier: tierChanged ? newTier.tier : null,
+              hash,
+            });
+            prevTierRef.current = newTier.tier;
+            if (toastTimer.current) window.clearTimeout(toastTimer.current);
+            toastTimer.current = window.setTimeout(() => setRepToast(null), 8000);
+          } else {
+            prevTierRef.current = tierForRep(newRep).tier;
+          }
+          return newRep;
+        });
+      } catch (err) {
+        console.error("ReputationBoosted handler failed", err);
+      }
     };
     c.on(filter, handler);
     return () => {
-      c.off(filter, handler);
+      void c.off(filter, handler);
     };
   }, [account, contractsConfigured]);
 
