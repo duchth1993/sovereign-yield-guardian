@@ -383,6 +383,7 @@ function SovereignYieldPage() {
               ...rows,
             ].slice(0, 6),
           );
+          pushRepToast(tx.hash, newRep - prevRep, newRep);
         } else {
           setPending("withdraw");
           const tx = await yieldC.withdraw(amount);
@@ -404,6 +405,7 @@ function SovereignYieldPage() {
               ...rows,
             ].slice(0, 6),
           );
+          pushRepToast(tx.hash, newRep - prevRep, newRep);
         }
       } catch (e) {
         const msg =
