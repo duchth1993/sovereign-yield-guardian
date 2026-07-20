@@ -613,6 +613,16 @@ function SovereignYieldPage() {
                 <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
                   ReputationBoosted · verified on-chain
                 </div>
+                {repToast.hash && (
+                  <a
+                    href={txExplorerUrl(repToast.hash)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 block font-mono text-[11px] text-accent hover:underline"
+                  >
+                    Verified: {shortAddr(repToast.hash)} ↗
+                  </a>
+                )}
               </div>
             </div>
           </div>
