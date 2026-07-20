@@ -442,7 +442,7 @@ function SovereignYieldPage() {
         setPending(null);
       }
     },
-    [account, contractsConfigured, stablecoinConfigured, inputAmount, refreshAccount, reputation],
+    [account, contractsConfigured, stablecoinConfigured, inputAmount, refreshAccount, reputation, pushRepToast],
   );
 
   const busy = pending !== null;
