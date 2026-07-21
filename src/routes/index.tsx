@@ -68,6 +68,16 @@ function addrExplorerUrl(addr: string) {
   return `${OPN_CHAIN.blockExplorerUrl}/address/${addr}`;
 }
 
+// REP is stored on-chain as a raw uint256 with an implicit 1e6 scale
+// (matching the stablecoin's 6 decimals). Display it as a 1:1 decimal.
+const REP_SCALE = 1_000_000;
+function formatRep(raw: bigint): string {
+  return (Number(raw) / REP_SCALE).toFixed(6);
+}
+function repToDisplayNumber(raw: bigint): number {
+  return Number(raw) / REP_SCALE;
+}
+
 type ActivityRow = {
   kind: "Deposit" | "Withdraw";
   amount: string;
