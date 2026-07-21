@@ -266,6 +266,6 @@
   background: radial-gradient(
     ellipse at 50% 50%,
     transparent 0%,
-    color-mix(in oklch, var(--wave-base) 60%, transparent) 100%
+    color-mix(in oklch, var(--wave-base) 40%, transparent) 100%
   );
 }
