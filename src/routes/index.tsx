@@ -130,7 +130,7 @@ function SovereignYieldPage() {
         setReputation((prev) => {
           if (acct[1] > prev && prev !== 0n) {
             const delta = acct[1] - prev;
-            setRepFlash(`+${delta.toString()} REP`);
+            setRepFlash(`+${formatRep(delta)} REP`);
             if (flashTimer.current) window.clearTimeout(flashTimer.current);
             flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
           }
@@ -324,15 +324,15 @@ function SovereignYieldPage() {
         setReputation((prev) => {
           if (newRep > prev) {
             const delta = newRep - prev;
-            setRepFlash(`+${delta.toString()} REP`);
+            setRepFlash(`+${formatRep(delta)} REP`);
             if (flashTimer.current) window.clearTimeout(flashTimer.current);
             flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
 
-            const newTier = tierForRep(newRep);
+            const newTier = tierForRep(repToDisplayNumber(newRep));
             const tierChanged =
               prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
             setRepToast({
-              delta: `+${delta.toString()}`,
+              delta: `+${formatRep(delta)}`,
               tier: tierChanged ? newTier.tier : null,
               hash,
             });
@@ -340,7 +340,7 @@ function SovereignYieldPage() {
             if (toastTimer.current) window.clearTimeout(toastTimer.current);
             toastTimer.current = window.setTimeout(() => setRepToast(null), 8000);
           } else {
-            prevTierRef.current = tierForRep(newRep).tier;
+            prevTierRef.current = tierForRep(repToDisplayNumber(newRep)).tier;
           }
           return newRep;
         });
@@ -361,14 +361,14 @@ function SovereignYieldPage() {
       setLastTx(hash);
     }
     if (delta > 0n) {
-      setRepFlash(`+${delta.toString()} REP`);
+      setRepFlash(`+${formatRep(delta)} REP`);
       if (flashTimer.current) window.clearTimeout(flashTimer.current);
       flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
     }
-    const newTier = tierForRep(newRep);
+    const newTier = tierForRep(repToDisplayNumber(newRep));
     const tierChanged = prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
     setRepToast({
-      delta: `+${delta.toString()}`,
+      delta: `+${formatRep(delta)}`,
       tier: tierChanged ? newTier.tier : null,
       hash: hash || null,
     });
@@ -499,12 +499,12 @@ function SovereignYieldPage() {
 
   // Progress within current tier
   const tierProgress = useMemo(() => {
-    const repN = Number(reputation);
+    const repN = displayedRep;
     const start = tier.minRep;
     const end = upcoming ? upcoming.minRep : start + 1;
     const pct = Math.min(100, Math.max(0, ((repN - start) / (end - start)) * 100));
     return { pct, repN };
-  }, [reputation, tier, upcoming]);
+  }, [displayedRep, tier, upcoming]);
 
   return (
     <div className="min-h-screen grid-bg">
@@ -557,10 +557,10 @@ function SovereignYieldPage() {
 
               <Stat
                 label="On-chain REP"
-                value={reputation.toString()}
+                value={`${formatRep(reputation)} REP`}
                 sub={
                   upcoming
-                    ? `${(upcoming.minRep - Number(reputation)).toLocaleString()} to ${upcoming.tier}`
+                    ? `${(upcoming.minRep - displayedRep).toLocaleString(undefined, { maximumFractionDigits: 6 })} to ${upcoming.tier}`
                     : "Maxed — Nexus tier"
                 }
                 flash={repFlash}
