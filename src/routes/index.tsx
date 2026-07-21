@@ -506,7 +506,7 @@ function SovereignYieldPage() {
   }, [displayedRep, tier, upcoming]);
 
   return (
-    <div className="min-h-screen grid-bg">
+    <div className="min-h-screen relative">
       <div className="mx-auto max-w-6xl px-6 py-10">
         <Header
           account={account}
