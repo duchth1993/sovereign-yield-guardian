@@ -70,9 +70,10 @@ export function AnimatedBackground() {
   return (
     <div className="animated-bg" aria-hidden="true">
       <div className="aurora-orb" />
-      <Wave baseline={170} amplitude={75} duration={32} opacity={0.07} height="28%" />
-      <Wave baseline={210} amplitude={55} duration={24} opacity={0.05} reverse height="24%" />
-      <Wave baseline={140} amplitude={90} duration={40} opacity={0.08} height="32%" />
+      <div className="vignette" />
+      <Wave baseline={170} amplitude={75} duration={32} opacity={0.18} height="28%" />
+      <Wave baseline={210} amplitude={55} duration={24} opacity={0.12} reverse height="24%" />
+      <Wave baseline={140} amplitude={90} duration={40} opacity={0.22} height="32%" />
     </div>
   );
 }
