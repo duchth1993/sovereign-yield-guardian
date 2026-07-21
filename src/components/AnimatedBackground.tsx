@@ -72,7 +72,7 @@ export function AnimatedBackground() {
       <div className="aurora-orb" />
       <div className="vignette" />
       <Wave baseline={170} amplitude={75} duration={32} opacity={0.14} height="28%" />
-      <Wave baseline={210} amplitude={55} duration={24} opacity={0.10} reverse height="24%" />
+      <Wave baseline={210} amplitude={55} duration={24} opacity={0.1} reverse height="24%" />
       <Wave baseline={140} amplitude={90} duration={40} opacity={0.18} height="32%" />
     </div>
   );
