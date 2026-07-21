@@ -68,6 +68,16 @@ function addrExplorerUrl(addr: string) {
   return `${OPN_CHAIN.blockExplorerUrl}/address/${addr}`;
 }
 
+// REP is stored on-chain as a raw uint256 with an implicit 1e6 scale
+// (matching the stablecoin's 6 decimals). Display it as a 1:1 decimal.
+const REP_SCALE = 1_000_000;
+function formatRep(raw: bigint): string {
+  return (Number(raw) / REP_SCALE).toFixed(6);
+}
+function repToDisplayNumber(raw: bigint): number {
+  return Number(raw) / REP_SCALE;
+}
+
 type ActivityRow = {
   kind: "Deposit" | "Withdraw";
   amount: string;
@@ -103,10 +113,11 @@ function SovereignYieldPage() {
   const contractsConfigured = !!SOVEREIGN_YIELD_ADDRESS;
   const stablecoinConfigured = !!STABLECOIN_ADDRESS;
 
-  const derivedTier = useMemo(() => tierForRep(reputation), [reputation]);
+  const displayedRep = useMemo(() => repToDisplayNumber(reputation), [reputation]);
+  const derivedTier = useMemo(() => tierForRep(displayedRep), [displayedRep]);
   const tier =
     onChainTierIdx !== null && TIERS[onChainTierIdx] ? TIERS[onChainTierIdx] : derivedTier;
-  const upcoming = useMemo(() => nextTier(reputation), [reputation]);
+  const upcoming = useMemo(() => nextTier(displayedRep), [displayedRep]);
   const tierIndex = TIERS.findIndex((t) => t.tier === tier.tier);
 
   const refreshAccount = useCallback(
@@ -119,7 +130,7 @@ function SovereignYieldPage() {
         setReputation((prev) => {
           if (acct[1] > prev && prev !== 0n) {
             const delta = acct[1] - prev;
-            setRepFlash(`+${delta.toString()} REP`);
+            setRepFlash(`+${formatRep(delta)} REP`);
             if (flashTimer.current) window.clearTimeout(flashTimer.current);
             flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
           }
@@ -313,15 +324,15 @@ function SovereignYieldPage() {
         setReputation((prev) => {
           if (newRep > prev) {
             const delta = newRep - prev;
-            setRepFlash(`+${delta.toString()} REP`);
+            setRepFlash(`+${formatRep(delta)} REP`);
             if (flashTimer.current) window.clearTimeout(flashTimer.current);
             flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
 
-            const newTier = tierForRep(newRep);
+            const newTier = tierForRep(repToDisplayNumber(newRep));
             const tierChanged =
               prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
             setRepToast({
-              delta: `+${delta.toString()}`,
+              delta: `+${formatRep(delta)}`,
               tier: tierChanged ? newTier.tier : null,
               hash,
             });
@@ -329,7 +340,7 @@ function SovereignYieldPage() {
             if (toastTimer.current) window.clearTimeout(toastTimer.current);
             toastTimer.current = window.setTimeout(() => setRepToast(null), 8000);
           } else {
-            prevTierRef.current = tierForRep(newRep).tier;
+            prevTierRef.current = tierForRep(repToDisplayNumber(newRep)).tier;
           }
           return newRep;
         });
@@ -350,14 +361,14 @@ function SovereignYieldPage() {
       setLastTx(hash);
     }
     if (delta > 0n) {
-      setRepFlash(`+${delta.toString()} REP`);
+      setRepFlash(`+${formatRep(delta)} REP`);
       if (flashTimer.current) window.clearTimeout(flashTimer.current);
       flashTimer.current = window.setTimeout(() => setRepFlash(null), 1600);
     }
-    const newTier = tierForRep(newRep);
+    const newTier = tierForRep(repToDisplayNumber(newRep));
     const tierChanged = prevTierRef.current !== null && prevTierRef.current !== newTier.tier;
     setRepToast({
-      delta: `+${delta.toString()}`,
+      delta: `+${formatRep(delta)}`,
       tier: tierChanged ? newTier.tier : null,
       hash: hash || null,
     });
@@ -405,12 +416,11 @@ function SovereignYieldPage() {
             return;
           }
           const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, signer);
-          const allowance: bigint = await stable.allowance(account, SOVEREIGN_YIELD_ADDRESS);
-          if (allowance < amount) {
-            setPending("approve");
-            const approveTx = await stable.approve(SOVEREIGN_YIELD_ADDRESS, amount);
-            await approveTx.wait();
-          }
+          // Always approve the exact amount before deposit to avoid
+          // "missing revert data" failures caused by stale/insufficient allowance.
+          setPending("approve");
+          const approveTx = await stable.approve(SOVEREIGN_YIELD_ADDRESS, amount);
+          await approveTx.wait();
           setPending("deposit");
           const tx = await yieldC.deposit(amount);
           setLastTx(tx.hash);
@@ -427,7 +437,7 @@ function SovereignYieldPage() {
                 kind: "Deposit" as const,
                 amount: formatUnits(amount, STABLECOIN_DECIMALS),
                 hash: tx.hash,
-                repDelta: `+${(newRep - prevRep).toString()}`,
+                repDelta: `+${formatRep(newRep - prevRep)}`,
                 ts: receipt?.blockNumber ? Date.now() : Date.now(),
               },
               ...rows,
@@ -451,7 +461,7 @@ function SovereignYieldPage() {
                 kind: "Withdraw" as const,
                 amount: formatUnits(amount, STABLECOIN_DECIMALS),
                 hash: tx.hash,
-                repDelta: `+${(newRep - prevRep).toString()}`,
+                repDelta: `+${formatRep(newRep - prevRep)}`,
                 ts: Date.now(),
               },
               ...rows,
@@ -488,12 +498,12 @@ function SovereignYieldPage() {
 
   // Progress within current tier
   const tierProgress = useMemo(() => {
-    const repN = Number(reputation);
+    const repN = displayedRep;
     const start = tier.minRep;
     const end = upcoming ? upcoming.minRep : start + 1;
     const pct = Math.min(100, Math.max(0, ((repN - start) / (end - start)) * 100));
     return { pct, repN };
-  }, [reputation, tier, upcoming]);
+  }, [displayedRep, tier, upcoming]);
 
   return (
     <div className="min-h-screen grid-bg">
@@ -546,10 +556,10 @@ function SovereignYieldPage() {
 
               <Stat
                 label="On-chain REP"
-                value={reputation.toString()}
+                value={`${formatRep(reputation)} REP`}
                 sub={
                   upcoming
-                    ? `${(upcoming.minRep - Number(reputation)).toLocaleString()} to ${upcoming.tier}`
+                    ? `${(upcoming.minRep - displayedRep).toLocaleString(undefined, { maximumFractionDigits: 6 })} to ${upcoming.tier}`
                     : "Maxed — Nexus tier"
                 }
                 flash={repFlash}
