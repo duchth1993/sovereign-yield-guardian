@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { AnimatedBackground } from "../components/AnimatedBackground";
 
 function NotFoundComponent() {
   return (
@@ -81,11 +82,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Sovereign Yield — Reputation-driven yield on OPN Chain" },
       { property: "og:title", content: "Sovereign Yield — Reputation-driven yield on OPN Chain" },
       { name: "twitter:title", content: "Sovereign Yield — Reputation-driven yield on OPN Chain" },
-      { name: "description", content: "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming." },
-      { property: "og:description", content: "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming." },
-      { name: "twitter:description", content: "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/2026b80d-47dc-4e6f-aff1-fbe6cd6cd9ee" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/2026b80d-47dc-4e6f-aff1-fbe6cd6cd9ee" },
+      {
+        name: "description",
+        content:
+          "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming.",
+      },
+      {
+        property: "og:description",
+        content:
+          "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming.",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "A permissionless yield optimizer on OPN Chain. APY scales with your Nexus REP tier. Every deposit updates your on-chain reputation — no anonymous farming.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/2026b80d-47dc-4e6f-aff1-fbe6cd6cd9ee",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/2026b80d-47dc-4e6f-aff1-fbe6cd6cd9ee",
+      },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
@@ -116,7 +137,8 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <AnimatedBackground />
+        <div className="relative z-10">{children}</div>
         <Scripts />
       </body>
     </html>

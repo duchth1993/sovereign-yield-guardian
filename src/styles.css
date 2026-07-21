@@ -25,13 +25,9 @@
   --color-warning: var(--warning);
   --color-destructive: var(--destructive);
 
-  --font-display:
-    "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    sans-serif;
-  --font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 :root {
@@ -61,9 +57,11 @@
   * {
     border-color: var(--color-border);
   }
-  html,
-  body {
+  html {
     background-color: var(--color-background);
+  }
+  body {
+    background-color: transparent;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -168,4 +166,106 @@
 
 @utility rep-flash {
   animation: rep-flash 1.6s ease-out forwards;
+}
+
+/* ---------- Animated cosmic background ---------- */
+
+:root {
+  --wave-base: #0a1f44;
+  --wave-deep: #122b5e;
+  --wave-glow: #3a7bff;
+}
+
+@keyframes wave-drift {
+  from {
+    transform: translateX(0) translateZ(0);
+  }
+  to {
+    transform: translateX(-50%) translateZ(0);
+  }
+}
+
+@keyframes wave-drift-reverse {
+  from {
+    transform: translateX(-50%) translateZ(0);
+  }
+  to {
+    transform: translateX(0) translateZ(0);
+  }
+}
+
+@keyframes aurora-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1) translate(0, 0);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.06) translate(12px, -16px);
+  }
+}
+
+@utility animated-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse at 20% 10%,
+      color-mix(in oklch, var(--accent) 30%, transparent) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 80% 90%,
+      color-mix(in oklch, var(--accent) 22%, transparent) 0%,
+      transparent 55%
+    ),
+    linear-gradient(180deg, var(--wave-base) 0%, var(--wave-deep) 100%);
+}
+
+@utility wave-layer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  width: 200%;
+  height: 28%;
+  will-change: transform;
+  transform: translateZ(0);
+  animation: wave-drift 30s linear infinite;
+}
+
+@utility wave-layer-reverse {
+  animation-name: wave-drift-reverse;
+}
+
+@utility aurora-orb {
+  position: absolute;
+  top: -12%;
+  left: -12%;
+  width: 60%;
+  height: 60%;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle at 40% 40%,
+    color-mix(in oklch, var(--accent) 35%, transparent) 0%,
+    transparent 60%
+  );
+  filter: blur(80px);
+  will-change: transform, opacity;
+  animation: aurora-breathe 18s ease-in-out infinite;
+}
+
+@utility vignette {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    transparent 0%,
+    color-mix(in oklch, var(--wave-base) 40%, transparent) 100%
+  );
 }
