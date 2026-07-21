@@ -10,10 +10,7 @@ function buildWavePath(
   let d = `M0,${baseline.toFixed(1)}`;
   for (let i = 1; i <= segments; i++) {
     const x = ((width * i) / segments).toFixed(1);
-    const y = (
-      baseline -
-      amplitude * Math.sin((2 * Math.PI * cycles * i) / segments)
-    ).toFixed(1);
+    const y = (baseline - amplitude * Math.sin((2 * Math.PI * cycles * i) / segments)).toFixed(1);
     d += ` L${x},${y}`;
   }
   d += ` L${width.toFixed(1)},320 L0,320 Z`;
@@ -57,13 +54,7 @@ function Wave({
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <linearGradient
-            id={`wave-${id}`}
-            x1="0"
-            y1="0"
-            x2="1"
-            y2="0"
-          >
+          <linearGradient id={`wave-${id}`} x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="var(--wave-glow)" stopOpacity="0.2" />
             <stop offset="50%" stopColor="var(--wave-glow)" stopOpacity="0.7" />
             <stop offset="100%" stopColor="var(--wave-glow)" stopOpacity="0.2" />

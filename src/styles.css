@@ -25,13 +25,9 @@
   --color-warning: var(--warning);
   --color-destructive: var(--destructive);
 
-  --font-display:
-    "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    sans-serif;
-  --font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 :root {
@@ -260,4 +256,3 @@
   will-change: transform, opacity;
   animation: aurora-breathe 18s ease-in-out infinite;
 }
-
