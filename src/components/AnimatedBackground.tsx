@@ -55,9 +55,9 @@ function Wave({
       >
         <defs>
           <linearGradient id={`wave-${id}`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--wave-glow)" stopOpacity="0.2" />
-            <stop offset="50%" stopColor="var(--wave-glow)" stopOpacity="0.7" />
-            <stop offset="100%" stopColor="var(--wave-glow)" stopOpacity="0.2" />
+            <stop offset="0%" stopColor="var(--wave-glow)" stopOpacity="0.35" />
+            <stop offset="50%" stopColor="var(--wave-glow)" stopOpacity="1" />
+            <stop offset="100%" stopColor="var(--wave-glow)" stopOpacity="0.35" />
           </linearGradient>
         </defs>
         <path fill={`url(#wave-${id})`} d={d} />
