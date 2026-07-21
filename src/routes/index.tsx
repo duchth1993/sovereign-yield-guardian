@@ -416,12 +416,11 @@ function SovereignYieldPage() {
             return;
           }
           const stable = new Contract(STABLECOIN_ADDRESS, ERC20_ABI, signer);
-          const allowance: bigint = await stable.allowance(account, SOVEREIGN_YIELD_ADDRESS);
-          if (allowance < amount) {
-            setPending("approve");
-            const approveTx = await stable.approve(SOVEREIGN_YIELD_ADDRESS, amount);
-            await approveTx.wait();
-          }
+          // Always approve the exact amount before deposit to avoid
+          // "missing revert data" failures caused by stale/insufficient allowance.
+          setPending("approve");
+          const approveTx = await stable.approve(SOVEREIGN_YIELD_ADDRESS, amount);
+          await approveTx.wait();
           setPending("deposit");
           const tx = await yieldC.deposit(amount);
           setLastTx(tx.hash);
