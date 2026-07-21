@@ -117,7 +117,8 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <AnimatedBackground />
+        <div className="relative z-10">{children}</div>
         <Scripts />
       </body>
     </html>
