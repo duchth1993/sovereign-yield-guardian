@@ -244,17 +244,28 @@
 
 @utility aurora-orb {
   position: absolute;
-  top: -10%;
-  left: -10%;
-  width: 55%;
-  height: 55%;
+  top: -12%;
+  left: -12%;
+  width: 60%;
+  height: 60%;
   border-radius: 9999px;
   background: radial-gradient(
     circle at 40% 40%,
-    color-mix(in oklch, var(--accent) 22%, transparent) 0%,
+    color-mix(in oklch, var(--accent) 35%, transparent) 0%,
     transparent 60%
   );
   filter: blur(80px);
   will-change: transform, opacity;
   animation: aurora-breathe 18s ease-in-out infinite;
+}
+
+@utility vignette {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    transparent 0%,
+    color-mix(in oklch, var(--wave-base) 60%, transparent) 100%
+  );
 }
