@@ -113,10 +113,11 @@ function SovereignYieldPage() {
   const contractsConfigured = !!SOVEREIGN_YIELD_ADDRESS;
   const stablecoinConfigured = !!STABLECOIN_ADDRESS;
 
-  const derivedTier = useMemo(() => tierForRep(reputation), [reputation]);
+  const displayedRep = useMemo(() => repToDisplayNumber(reputation), [reputation]);
+  const derivedTier = useMemo(() => tierForRep(displayedRep), [displayedRep]);
   const tier =
     onChainTierIdx !== null && TIERS[onChainTierIdx] ? TIERS[onChainTierIdx] : derivedTier;
-  const upcoming = useMemo(() => nextTier(reputation), [reputation]);
+  const upcoming = useMemo(() => nextTier(displayedRep), [displayedRep]);
   const tierIndex = TIERS.findIndex((t) => t.tier === tier.tier);
 
   const refreshAccount = useCallback(
