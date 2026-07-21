@@ -209,19 +209,19 @@
 @utility animated-bg {
   position: fixed;
   inset: 0;
-  z-index: -10;
+  z-index: 0;
   pointer-events: none;
   overflow: hidden;
   background:
     radial-gradient(
       ellipse at 20% 10%,
-      color-mix(in oklch, var(--accent) 18%, transparent) 0%,
+      color-mix(in oklch, var(--accent) 30%, transparent) 0%,
       transparent 45%
     ),
     radial-gradient(
       ellipse at 80% 90%,
-      color-mix(in oklch, var(--accent) 12%, transparent) 0%,
-      transparent 50%
+      color-mix(in oklch, var(--accent) 22%, transparent) 0%,
+      transparent 55%
     ),
     linear-gradient(180deg, var(--wave-base) 0%, var(--wave-deep) 100%);
 }
